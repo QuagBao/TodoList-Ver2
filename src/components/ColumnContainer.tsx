@@ -1,21 +1,32 @@
 import { Column, Id, Task } from '../types'
 import TrashIcon from '../icons/TrashIcon'
-import { useSortable } from '@dnd-kit/sortable'
+import { SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import PlusIcon from '../icons/PlusIcon'
 import TaskCard from './TaskCard'
 
 interface Props {
+	index: number
 	column: Column
 	deleteColumn: (id: Id) => void
 	updateColumn: (id: Id, title: string) => void
+
 	createTask: (columnId: Id) => void
+	deleteTask(id: Id): void
+	updateTask(id: Id, content: string): void
 	tasks: Task[]
 }
-function ColumnContainer(props: Props) {
-	const { column, deleteColumn, updateColumn, createTask, tasks } = props
-
+function ColumnContainer({
+	index,
+	column,
+	deleteColumn,
+	updateColumn,
+	tasks,
+	createTask,
+	deleteTask,
+	updateTask,
+}: Props) {
 	const [editMode, setEditMode] = useState(false)
 
 	const {
@@ -35,6 +46,8 @@ function ColumnContainer(props: Props) {
 		transition,
 		transform: CSS.Transform.toString(transform),
 	}
+
+	const tasksIds = useMemo(() => tasks.map((task) => task.id), [tasks])
 
 	if (isDragging) {
 		return (
@@ -72,7 +85,7 @@ function ColumnContainer(props: Props) {
 						className="flex justify-center items-center 
 					bg-columnBackgroundColor px-2 text-sm rounded-full "
 					>
-						<div>{column.id}</div>
+						<div>{index}. </div>
 					</div>
 					{!editMode && column.title}
 					{editMode && (
@@ -105,9 +118,17 @@ function ColumnContainer(props: Props) {
 				className="flex flex-col gap-4 p-2 
 				overflow-x-hidden overflow-y-auto flex-grow"
 			>
-				{tasks.map((task) => (
-					<TaskCard key={task.id} task={task} />
-				))}
+				<SortableContext items={tasksIds}>
+					{tasks.map((task) => (
+						<TaskCard
+							index={tasks.indexOf(task)}
+							key={task.id}
+							task={task}
+							deleteTask={deleteTask}
+							updateTask={updateTask}
+						/>
+					))}
+				</SortableContext>
 			</div>
 			<button
 				className="flex gap-2 items-center border-columnBackgroundColor border-2 rounded-md p-4 border-x-columnBackgroundColor

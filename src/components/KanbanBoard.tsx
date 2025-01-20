@@ -11,9 +11,11 @@ import {
 	useSensor,
 	useSensors,
 	PointerSensor,
+	DragOverEvent,
 } from '@dnd-kit/core'
 import { arrayMove, SortableContext } from '@dnd-kit/sortable'
 import { createPortal } from 'react-dom'
+import TaskCard from './TaskCard'
 
 function KanbanBoard() {
 	const [columns, setColumns] = useState<Column[]>([])
@@ -21,6 +23,7 @@ function KanbanBoard() {
 	console.log(columns)
 
 	const [activeColumn, setActiveColumn] = useState<Column | null>(null)
+	const [activeTask, setActiveTask] = useState<Task | null>(null)
 
 	const [tasks, setTasks] = useState<Task[]>([])
 
@@ -48,18 +51,22 @@ function KanbanBoard() {
 				sensors={sensors}
 				onDragStart={onDragStart}
 				onDragEnd={onDragEnd}
+				onDragOver={onDragOver}
 			>
 				<div className="m-auto flex gap-4">
 					<div className="m-auto flex gap-4">
 						<SortableContext items={columnsId}>
 							{columns.map((column) => (
 								<ColumnContainer
+									index={columns.indexOf(column) + 1}
 									key={column.id}
 									column={column}
 									deleteColumn={deleteColumn}
 									updateColumn={updateColumn}
-									createTask={createTask}
 									tasks={tasks.filter((task) => task.columnId === column.id)}
+									createTask={createTask}
+									deleteTask={deleteTask}
+									updateTask={updateTask}
 								/>
 							))}
 						</SortableContext>
@@ -94,15 +101,26 @@ function KanbanBoard() {
 					<DragOverlay>
 						{activeColumn && (
 							<ColumnContainer
+								index={columns.indexOf(activeColumn) + 1}
 								column={activeColumn}
 								deleteColumn={deleteColumn}
 								updateColumn={updateColumn}
-								createTask={createTask}
 								tasks={tasks.filter(
 									(task) => task.columnId === activeColumn.id
 								)}
+								createTask={createTask}
+								deleteTask={deleteTask}
+								updateTask={updateTask}
 							/>
-						)}{' '}
+						)}
+						{activeTask && (
+							<TaskCard
+								index={tasks.indexOf(activeTask) + 1}
+								task={activeTask}
+								deleteTask={deleteTask}
+								updateTask={updateTask}
+							/>
+						)}
 					</DragOverlay>,
 					document.body
 				)}
@@ -121,6 +139,9 @@ function KanbanBoard() {
 	function deleteColumn(id: Id) {
 		const filteredColumns = columns.filter((column) => column.id !== id)
 		setColumns(filteredColumns)
+
+		const newTask = tasks.filter((task) => task.columnId !== id)
+		setTasks(newTask)
 	}
 
 	function generateId() {
@@ -134,9 +155,16 @@ function KanbanBoard() {
 			setActiveColumn(event.active.data.current.column)
 			return
 		}
+
+		if (event.active.data.current?.type === 'Task') {
+			setActiveTask(event.active.data.current.task)
+			return
+		}
 	}
 
 	function onDragEnd(event: DragEndEvent) {
+		setActiveColumn(null)
+		setActiveTask(null)
 		const { active, over } = event
 		if (!over) return
 		const activeColumnId = active.id
@@ -154,6 +182,42 @@ function KanbanBoard() {
 			return arrayMove(columns, activeColumnIndex, overColumnIndex)
 		})
 	}
+
+	function onDragOver(event: DragOverEvent) {
+		const { active, over } = event
+		if (!over) return
+		const activeId = active.id
+		const overId = over.id
+
+		if (activeId === overId) return
+		const isActiveATask = active.data.current?.type === 'Task'
+		const isOverATask = over.data.current?.type === 'Task'
+
+		if (!isActiveATask) return
+
+		// Im dropping a Task over another task
+		if (isActiveATask && isOverATask) {
+			setTasks((tasks) => {
+				const activeIndex = tasks.findIndex((t) => t.id === active.id)
+				const overIndex = tasks.findIndex((t) => t.id === over.id)
+				tasks[activeIndex].columnId = tasks[overIndex].columnId
+
+				return arrayMove(tasks, activeIndex, overIndex)
+			})
+		}
+
+		const isOverAColumn = over.data.current?.type === 'Column'
+		// Im dropping a Task over a column
+		if (isActiveATask && isOverAColumn) {
+			setTasks((tasks) => {
+				const activeIndex = tasks.findIndex((t) => t.id === active.id)
+				tasks[activeIndex].columnId = overId
+
+				return arrayMove(tasks, activeIndex, activeIndex)
+			})
+		}
+	}
+
 	function updateColumn(id: Id, title: string) {
 		const newColumns = columns.map((column) => {
 			if (column.id === id) return { ...column, title }
@@ -168,6 +232,17 @@ function KanbanBoard() {
 			content: `Task ${tasks.length + 1}`,
 		}
 		setTasks([...tasks, newTask])
+	}
+	function deleteTask(id: Id) {
+		const newTasks = tasks.filter((task) => task.id !== id)
+		setTasks(newTasks)
+	}
+	function updateTask(id: Id, content: string) {
+		const newTasks = tasks.map((task) => {
+			if (task.id === id) return { ...task, content }
+			return task
+		})
+		setTasks(newTasks)
 	}
 }
 
